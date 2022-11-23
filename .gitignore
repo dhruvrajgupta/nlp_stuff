@@ -15,3 +15,5 @@ cc.en.300.bin
 Cleaned_Indian_Food_Dataset.csv
 food_recipes.txt
 ecommerce_dataset.csv
+ecommerce.train
+ecommerce.test
