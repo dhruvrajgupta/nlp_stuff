@@ -6,6 +6,8 @@ from collections import Counter
 import random
 from spacy.util import minibatch, compounding
 from spacy.training import Example
+from spacy.ml.models import load_kb
+import pickle
 
 
 import csv
@@ -28,16 +30,14 @@ def load_entities():
             descriptions[qid] = desc
     return names, descriptions
 
-def ckb(vocab):
-    kb = InMemoryLookupKB(vocab=vocab, entity_vector_length=1)
-    kb.from_disk(output_dir / "my_kb")
-    return kb
-
 def create_kb():
     nlp = spacy.load("en_core_web_lg")
     text = "Tennis champion Emerson was expected to win Wimbledon."
     doc = nlp(text)
     name_dict, desc_dict = load_entities()
+
+    # for QID in name_dict.keys():
+    #     print(f"{QID}, name={name_dict[QID]}, desc={desc_dict[QID]}")
 
     kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=300)
     for qid, desc in desc_dict.items():
@@ -69,6 +69,7 @@ def train_el():
 
     dataset = []
     json_loc = Path.cwd() / "input" / "emerson_annotated_text.jsonl"
+    dataset = []
     with json_loc.open("r", encoding="utf8") as jsonfile:
         for line in jsonfile:
             example = json.loads(line)
@@ -76,10 +77,15 @@ def train_el():
             if example["answer"] == "accept":
                 QID = example["accept"][0]
                 offset = (example["spans"][0]["start"], example["spans"][0]["end"])
+                entity_label = example["spans"][0]["label"]
+                entities = [(offset[0], offset[1], entity_label)]
                 links_dict = {QID: 1.0}
-            dataset.append((text, {"links": {offset: links_dict}}))
+            dataset.append((text, {"links": {offset: links_dict}, "entities": entities}))
 
-    print(dataset[0])
+    for item in dataset:
+        print(item)
+        print()
+        print()
 
     gold_ids = []
     for text, annot in dataset:
@@ -106,28 +112,28 @@ def train_el():
     random.shuffle(train_dataset)
     random.shuffle(test_dataset)
 
-    TRAIN_DOCS = []
+    TRAIN_EXAMPLES = []
+    if "sentencizer" not in nlp.pipe_names:
+        nlp.add_pipe("sentencizer")
+    sentencizer = nlp.get_pipe("sentencizer")
     for text, annotation in train_dataset:
-        doc = nlp(text)     # to make this more efficient, you can use nlp.pipe() just once for all the texts
-        example = Example.from_dict(doc, annotation)
-        # TRAIN_DOCS.append((doc, annotation))
-        TRAIN_DOCS.append(example)
+        example = Example.from_dict(nlp.make_doc(text), annotation)
+        # Here annotation is the Gold Standard reference
+        example.reference = sentencizer(example.reference)
+        TRAIN_EXAMPLES.append(example)
 
-    # entity_linker = nlp.create_pipe("entity_linker", config={"incl_prior": False})
-    # entity_linker.set_kb(ckb)
     entity_linker = nlp.add_pipe("entity_linker", config={"incl_prior": False}, last=True)
-    entity_linker.set_kb(ckb)
+    entity_linker.initialize(get_examples=lambda: TRAIN_EXAMPLES, kb_loader=load_kb(output_dir / "my_kb"))
 
-    other_pipes = [pipe for pipe in nlp.pipe_names if pipe != "entity_linker"]
-    with nlp.disable_pipes(*other_pipes):   # train only the entity_linker
-        optimizer = nlp.create_optimizer()
+    with nlp.select_pipes(enable=["entity_linker"]):   # train only the entity_linker
+        optimizer = nlp.resume_training()
         for itn in range(500):   # 500 iterations takes about a minute to train
-            random.shuffle(TRAIN_DOCS)
-            batches = minibatch(TRAIN_DOCS, size=compounding(4.0, 32.0, 1.001))  # increasing batch sizes
+            random.shuffle(TRAIN_EXAMPLES)
+            batches = minibatch(TRAIN_EXAMPLES, size=compounding(4.0, 32.0, 1.001))  # increasing batch sizes
             losses = {}
             for batch in batches:
                 nlp.update(
-                    batch,
+                    batch,   
                     drop=0.2,      # prevent overfitting
                     losses=losses,
                     sgd=optimizer,
@@ -138,7 +144,20 @@ def train_el():
 
     nlp.to_disk(output_dir / "my_nlp_el")
 
+    with open(output_dir / "test_set.pkl", "wb") as f:
+        pickle.dump(test_dataset, f)
+
+def eval():
+    nlp = spacy.load(output_dir / "my_nlp")
+    text = "Tennis champion Emerson was expected to win Wimbledon."
+    doc = nlp(text)
+    for ent in doc.ents:
+        print(ent)
+        print(ent.text, ent.label_, ent.kb_id_)
+
 
 if __name__ == "__main__":
     create_kb()
     train_el()
+    print()
+    eval()
