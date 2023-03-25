@@ -18,3 +18,4 @@ ecommerce_dataset.csv
 ecommerce.train
 ecommerce.test
 project/my_output
+.DS_Store
