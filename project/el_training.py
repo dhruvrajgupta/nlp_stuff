@@ -13,7 +13,7 @@ import pickle
 import csv
 from pathlib import Path
 
-output_dir = Path.cwd() / "my_output"
+output_dir = Path.cwd() / "my_outputx"
 
 def load_entities():
     entities_loc = Path.cwd() / "input" / "entities.csv"  # distributed alongside this notebook
@@ -31,7 +31,7 @@ def load_entities():
     return names, descriptions
 
 def create_kb():
-    nlp = spacy.load("en_core_web_lg")
+    nlp = spacy.load("en_core_web_trf")
     text = "Tennis champion Emerson was expected to win Wimbledon."
     doc = nlp(text)
     name_dict, desc_dict = load_entities()
@@ -39,10 +39,13 @@ def create_kb():
     # for QID in name_dict.keys():
     #     print(f"{QID}, name={name_dict[QID]}, desc={desc_dict[QID]}")
 
-    kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=300)
+    kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=64)
     for qid, desc in desc_dict.items():
+        print(desc)
         desc_doc = nlp(desc)
+        print(type(desc_doc))
         desc_enc = desc_doc.vector
+        print(desc_enc)
         kb.add_entity(entity=qid, entity_vector=desc_enc, freq=342)   # 342 is an arbitrary value here
 
     for qid, name in name_dict.items():
@@ -51,12 +54,6 @@ def create_kb():
     qids = name_dict.keys()
     probs = [0.3 for qid in qids]
     kb.add_alias(alias="Emerson", entities=qids, probabilities=probs)  # sum([probs]) should be <= 1 !
-
-    print(f"Entities in the KB: {kb.get_entity_strings()}")
-    print(f"Aliases in the KB: {kb.get_alias_strings()}")
-    print(f"Candidates for 'Roy Stanley Emerson': {[c.entity_ for c in kb.get_candidates(nlp('Roy Stanley Emerson'))]}")
-    print(f"Candidates for 'Emerson': {[c.entity_ for c in kb.get_candidates(nlp('Emerson'))]}")
-    print(f"Candidates for 'Sofie': {[c.entity_ for c in kb.get_candidates(nlp('Sofie'))]}")
 
     # change the directory and file names to whatever you like
     if not os.path.exists(output_dir):
@@ -73,7 +70,9 @@ def train_el():
     with json_loc.open("r", encoding="utf8") as jsonfile:
         for line in jsonfile:
             example = json.loads(line)
+            # print(line)
             text = example["text"]
+            # print(text)
             if example["answer"] == "accept":
                 QID = example["accept"][0]
                 offset = (example["spans"][0]["start"], example["spans"][0]["end"])
@@ -82,19 +81,12 @@ def train_el():
                 links_dict = {QID: 1.0}
             dataset.append((text, {"links": {offset: links_dict}, "entities": entities}))
 
-    for item in dataset:
-        print(item)
-        print()
-        print()
-
     gold_ids = []
     for text, annot in dataset:
         for span, links_dict in annot["links"].items():
             for link, value in links_dict.items():
                 if value:
                     gold_ids.append(link)
-
-    print(Counter(gold_ids))
 
     train_dataset = []
     test_dataset = []
@@ -147,17 +139,24 @@ def train_el():
     with open(output_dir / "test_set.pkl", "wb") as f:
         pickle.dump(test_dataset, f)
 
-def eval():
-    nlp = spacy.load(output_dir / "my_nlp")
-    text = "Tennis champion Emerson was expected to win Wimbledon."
-    doc = nlp(text)
-    for ent in doc.ents:
-        print(ent)
-        print(ent.text, ent.label_, ent.kb_id_)
-
 
 if __name__ == "__main__":
     create_kb()
     train_el()
-    print()
-    eval()
+    nlp = spacy.load(output_dir / "my_nlp_el")
+    # text = "Tennis champion Emerson was expected to win Wimbledon."
+    # doc = nlp(text)
+    # for ent in doc.ents:
+    #     print(ent.text, ent.label_, ent.kb_id_)
+
+    with open(output_dir / "test_set.pkl", "rb") as f:
+        test_dataset = pickle.load(f)
+
+    for text, true_annot in test_dataset:
+        print(text)
+        print(f"Gold annotation: {true_annot}")
+        doc = nlp(text)  # to make this more efficient, you can use nlp.pipe() just once for all the texts
+        for ent in doc.ents:
+            if ent.text == "Emerson":
+                print(f"Prediction: {ent.text}, {ent.label_}, {ent.kb_id_}")
+        print()
