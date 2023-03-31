@@ -4,40 +4,39 @@ from spacy.kb import InMemoryLookupKB
 import json
 import random
 import pickle
+import numpy as np
+from typing import List
 
 import csv
 from pathlib import Path
 
 output_dir = Path.cwd() / "my_output"
 dis_kb = {}
-nlp = spacy.load("en_core_web_trf")
 
 
-def get_embeddings_from_string(str: String):
-    print(str)
-    document = nlp("This is a sentence. This is another sentence.")
-    sentences = [sentence.text for sentence in document.sents]
-    desc_doc = nlp.pipe(sentences)
+def get_embeddings_from_string(text: str, nlp):
+    # Converting the string to list of sentences of the string
+    text = [sent.text for sent in nlp(text).sents]
 
-    desc_embeddings_stack = []
-    desc_avg_enc = None
-    for sentence in desc_doc:
-        # print(doc)
-        desc_enc = doc._.trf_data.tensors[-1]  # (1, 768)
-        desc_embeddings_stack.append(desc_enc)
-        desc_avg_enc = get_avg_vectors(desc_embeddings_stack)
-    # print(vector_stack.shape)
-    # vector_stack = []
-    # vector_stack.append(np.array([[1,2]]))
-    # vector_stack.append(np.array([[7,5]]))
-    sum = 0
-    count = 0
-    for embedding in vector_stack:
-        # print(embedding[0])
-        sum += embedding[0]
-        count += 1
+    long_ass_text_doc = nlp.pipe(text)
 
-    return sum / count
+    # Getting the number of rows of embeddings
+    num_rows = 0
+    for sentences_chunks in long_ass_text_doc:
+        num_rows += sentences_chunks._.trf_data.tensors[-1].shape[0]
+
+    long_ass_text_doc = nlp.pipe(text)
+    long_ass_text_doc_embedding_stack = np.zeros((num_rows, 768))
+    row = 0
+    for sentences_chunks in long_ass_text_doc:
+        # print(sentences_chunks)
+        sentences_chunks_enc = sentences_chunks._.trf_data.tensors[-1]  # (x, 768)
+        # print(sentences_chunks_enc.shape)
+        size = sentences_chunks_enc.shape[0]
+        long_ass_text_doc_embedding_stack[row: row + size] = sentences_chunks_enc
+        row += size
+
+    return long_ass_text_doc_embedding_stack.mean(axis=0)
 
 
 def load_entities():
@@ -59,8 +58,6 @@ def load_entities():
 
 def create_kb():
     nlp = spacy.load("en_core_web_trf")
-    # text = "Tennis champion Emerson was expected to win Wimbledon."
-    # doc = nlp(text)
     name_dict, desc_dict = load_entities()
 
     # for QID in name_dict.keys():
@@ -68,19 +65,8 @@ def create_kb():
 
     kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=768)
     for qid, desc in desc_dict.items():
-        # Desc is very short,  long -> use sentencizer and average the tokens
-        doc = nlp(desc)
-        sentences = [sent.text for sent in doc.sents]
-        desc_doc = nlp.pipe(sentences)
-        desc_embeddings_stack = []
-        desc_avg_enc = None
-        for doc in desc_doc:
-            # print(doc)
-            desc_enc = doc._.trf_data.tensors[-1]  # (1, 768)
-            desc_embeddings_stack.append(desc_enc)
-            desc_avg_enc = get_avg_vectors(desc_embeddings_stack)
-
-        kb.add_entity(entity=qid, entity_vector=desc_avg_enc, freq=342)  # 342 is an arbitrary value here
+        kb.add_entity(entity=qid, entity_vector=get_embeddings_from_string(desc, nlp),
+                      freq=342)  # 342 is an arbitrary value here
 
     for qid, name in name_dict.items():
         # print(qid)
@@ -181,32 +167,33 @@ def train_el():
 
 
 if __name__ == "__main__":
+    # get_embeddings_from_string("This is a sentence. This is another sentence.", spacy.load("en_core_web_trf"))
     # get_avg_vectors()
     create_kb()
-    train_el()
-    nlp = spacy.load(output_dir / "my_nlp")
-    kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=0)
-    kb.from_disk(output_dir / "my_kb")
-    # text = "Tennis champion Emerson was expected to win Wimbledon."
-    # doc = nlp(text)
-    # for ent in doc.ents:
-    #     print(ent.text, ent.label_, ent.kb_id_)
-
-    with open(output_dir / "test_set.pkl", "rb") as f:
-        test_dataset = pickle.load(f)
-
-    print(dis_kb)
-    for text, true_annot in test_dataset:
-        print(text)
-        print(f"Gold annotation: {true_annot}")
-        doc = nlp(text)  # to make this more efficient, you can use nlp.pipe() just once for all the texts
-        text_vector = doc.vector
-        print(text_vector)
-        # for ent in doc.ents:
-        #     if ent.text == "Emerson":
-        #         # Get all candidates for Emerson
-        #         candidates = kb.get_alias_candidates("Emerson")
-        #         for candidate in candidates:
-        #             print(f"{candidate.entity_} - {dis_kb[candidate.entity_]}")
-        #         # print(f"Prediction: {ent.text}, {ent.label_}, {ent.kb_id_}")
-        # print()
+    # train_el()
+    # nlp = spacy.load(output_dir / "my_nlp")
+    # kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=0)
+    # kb.from_disk(output_dir / "my_kb")
+    # # text = "Tennis champion Emerson was expected to win Wimbledon."
+    # # doc = nlp(text)
+    # # for ent in doc.ents:
+    # #     print(ent.text, ent.label_, ent.kb_id_)
+    #
+    # with open(output_dir / "test_set.pkl", "rb") as f:
+    #     test_dataset = pickle.load(f)
+    #
+    # print(dis_kb)
+    # for text, true_annot in test_dataset:
+    #     print(text)
+    #     print(f"Gold annotation: {true_annot}")
+    #     doc = nlp(text)  # to make this more efficient, you can use nlp.pipe() just once for all the texts
+    #     text_vector = doc.vector
+    #     print(text_vector)
+    #     # for ent in doc.ents:
+    #     #     if ent.text == "Emerson":
+    #     #         # Get all candidates for Emerson
+    #     #         candidates = kb.get_alias_candidates("Emerson")
+    #     #         for candidate in candidates:
+    #     #             print(f"{candidate.entity_} - {dis_kb[candidate.entity_]}")
+    #     #         # print(f"Prediction: {ent.text}, {ent.label_}, {ent.kb_id_}")
+    #     # print()
