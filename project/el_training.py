@@ -5,6 +5,8 @@ import json
 import random
 import pickle
 import numpy as np
+from numpy import dot
+from numpy.linalg import norm
 from typing import List
 
 import csv
@@ -40,7 +42,7 @@ def get_embeddings_from_string(text: str, nlp):
 
 
 def load_entities():
-    entities_loc = Path.cwd() / "input" / "entities.csv"  # distributed alongside this notebook
+    entities_loc = Path.cwd() / "input" / "entities_expanded.csv"  # distributed alongside this notebook
 
     names = dict()
     descriptions = dict()
@@ -69,8 +71,6 @@ def create_kb():
                       freq=342)  # 342 is an arbitrary value here
 
     for qid, name in name_dict.items():
-        # print(qid)
-        # print(name)
         kb.add_alias(alias=name, entities=[qid], probabilities=[1])  # 100% prior probability P(entity|alias)
 
     qids = name_dict.keys()
@@ -168,32 +168,37 @@ def train_el():
 
 if __name__ == "__main__":
     # get_embeddings_from_string("This is a sentence. This is another sentence.", spacy.load("en_core_web_trf"))
-    # get_avg_vectors()
-    create_kb()
+    # create_kb()
     # train_el()
-    # nlp = spacy.load(output_dir / "my_nlp")
-    # kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=0)
-    # kb.from_disk(output_dir / "my_kb")
-    # # text = "Tennis champion Emerson was expected to win Wimbledon."
-    # # doc = nlp(text)
-    # # for ent in doc.ents:
-    # #     print(ent.text, ent.label_, ent.kb_id_)
-    #
-    # with open(output_dir / "test_set.pkl", "rb") as f:
-    #     test_dataset = pickle.load(f)
-    #
+    nlp = spacy.load(output_dir / "my_nlp")
+    kb = InMemoryLookupKB(vocab=nlp.vocab, entity_vector_length=0)
+    kb.from_disk(output_dir / "my_kb")
+
+    # text = "Tennis champion Emerson was expected to win Wimbledon."
+    # doc = nlp(text)
+    # for ent in doc.ents:
+    #     print(ent.text, ent.label_, ent.kb_id_)
+
+    with open(output_dir / "test_set.pkl", "rb") as f:
+        test_dataset = pickle.load(f)
+
+    # load_entities()
     # print(dis_kb)
-    # for text, true_annot in test_dataset:
-    #     print(text)
-    #     print(f"Gold annotation: {true_annot}")
-    #     doc = nlp(text)  # to make this more efficient, you can use nlp.pipe() just once for all the texts
-    #     text_vector = doc.vector
-    #     print(text_vector)
-    #     # for ent in doc.ents:
-    #     #     if ent.text == "Emerson":
-    #     #         # Get all candidates for Emerson
-    #     #         candidates = kb.get_alias_candidates("Emerson")
-    #     #         for candidate in candidates:
-    #     #             print(f"{candidate.entity_} - {dis_kb[candidate.entity_]}")
-    #     #         # print(f"Prediction: {ent.text}, {ent.label_}, {ent.kb_id_}")
-    #     # print()
+    for text, true_annot in test_dataset:
+        print(text)
+        print(f"Gold annotation: {true_annot}")
+        text_doc = nlp(text)
+        text_embed = get_embeddings_from_string(text, nlp)
+        for ent in text_doc.ents:
+            if ent.text == "Emerson":
+                # Get all candidates for Emerson
+                candidates = kb.get_alias_candidates("Emerson")
+                for candidate in candidates:
+                    print(f"{candidate.entity_} - {candidate.alias_}")
+                    similarity = np.dot(text_embed, np.array(candidate.entity_vector)) / (
+                                norm(text_embed) * norm(np.array(candidate.entity_vector)))
+                    print(f"Similarity : {similarity}")
+                    print(text)
+                    print()
+        #         # print(f"Prediction: {ent.text}, {ent.label_}, {ent.kb_id_}")
+            print()
