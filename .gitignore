@@ -20,4 +20,5 @@ ecommerce.test
 project/my_output
 .DS_Store
 .idea
-__pycache__/
+__pycache__
+extracted_entities

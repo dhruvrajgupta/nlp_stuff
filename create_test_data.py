@@ -3,11 +3,12 @@ import json
 from tqdm import tqdm
 import wikipediaapi
 
-url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={qid}&languages=en&props=descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
+url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={" \
+      "qid}&languages=en&props=descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
 entities_qid_list = []
 wiki = wikipediaapi.Wikipedia('en')
 debug = True
-debug_count = 200
+debug_count = 5
 
 
 def get_entity_info(qid):
@@ -50,6 +51,26 @@ def print_links(page):
     links = page.links
     for title in sorted(links.keys()):
         print("%s: %s" % (title, links[title]))
+
+
+def show_page_info(page, entity_dict):
+    print("\n")
+    print(f"Wikidata Title:\t{entity_dict['wikidata_title']}")
+    print(f"Wikipedia Title:\t{page.title}")
+    sections = page.sections
+    sections_text_list = get_section_text(sections, [])
+    for x in sections_text_list:
+        print(x)
+        print()
+    print("#" * 50)
+
+def get_section_text(sections, sections_text_list):
+    for s in sections:
+        if s.title not in ["Bibliography", "References", "External links"]:
+            sections_text_list.append(s.text)
+            get_section_text(s.sections, sections_text_list)
+
+    return sections_text_list
 
 
 def write_wiki_info():
@@ -102,6 +123,7 @@ def write_wiki_info():
                     entity_dict["wikipedia_title"] = page.title
                     entity_dict["wikidata_url"] = wikidata_url
                     entity_dict["summary"] = summary
+                    show_page_info(page, entity_dict)
                     wiki_info_to_file(entity_dict)
                 else:
                     print(f"Failed to fetch info - {wikidata_title}")
