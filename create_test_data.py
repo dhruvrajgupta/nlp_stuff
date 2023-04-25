@@ -8,7 +8,8 @@ url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={" \
 entities_qid_list = []
 wiki = wikipediaapi.Wikipedia('en')
 debug = True
-debug_count = 5
+debug_count = 300
+debug_entities_meta_count = 1000
 
 
 def get_entity_info(qid):
@@ -32,7 +33,7 @@ def write_meta_info_file():
     entities_qid_list = entities_from_file()
     with open("entity_meta_info.jsonl", "wt") as f:
         if debug:
-            en_list = entities_qid_list[:debug_count]
+            en_list = entities_qid_list[:debug_entities_meta_count]
         else:
             en_list = entities_qid_list
 
@@ -53,16 +54,23 @@ def print_links(page):
         print("%s: %s" % (title, links[title]))
 
 
-def show_page_info(page, entity_dict):
-    print("\n")
-    print(f"Wikidata Title:\t{entity_dict['wikidata_title']}")
-    print(f"Wikipedia Title:\t{page.title}")
+def extract_text_having_mention(page, entity_dict):
+    extracted_texts = []
+    if debug:
+        print("\n")
+        print(f"Wikidata Title:\t{entity_dict['wikidata_title']}")
+        print(f"Wikipedia Title:\t{page.title}")
+        print(f"Texts containing {entity_dict['wikidata_title']}")
     sections = page.sections
     sections_text_list = get_section_text(sections, [])
     for x in sections_text_list:
-        print(x)
-        print()
-    print("#" * 50)
+        if entity_dict['wikidata_title'] in x:
+            if debug:
+                print(x)
+            extracted_texts.append(x)
+
+    return extracted_texts
+
 
 def get_section_text(sections, sections_text_list):
     for s in sections:
@@ -111,11 +119,16 @@ def write_wiki_info():
                     # check whether the page is exact as the url
                     # Redirects
                     if page.fullurl != wikidata_url:
-                        entity_dict["page_url"] = page.fullurl
-                        entity_dict["page_title"] = page.title
-                        diff_urls_ents.append(entity_dict)
-                        print(f"meta url - {wikidata_url}")
-                        print(f"page url - {page.fullurl}")
+                        diff_url_ent = {}
+                        diff_url_ent["wikidata_id"] = entity_id
+                        diff_url_ent["wikidata_title"] = wikidata_title
+                        diff_url_ent["wikipage_title"] = page.title
+                        diff_url_ent["wikidata_url"] = wikidata_url
+                        diff_url_ent["wikipage_url"] = page.fullurl
+                        diff_urls_ents.append(diff_url_ent)
+                        if debug:
+                            print(f"meta url - {wikidata_url}")
+                            print(f"page url - {page.fullurl}")
 
                     summary = page.summary
                     entity_dict["wikidata_id"] = entity_id
@@ -123,14 +136,17 @@ def write_wiki_info():
                     entity_dict["wikipedia_title"] = page.title
                     entity_dict["wikidata_url"] = wikidata_url
                     entity_dict["summary"] = summary
-                    show_page_info(page, entity_dict)
+                    text = extract_text_having_mention(page, entity_dict)
+                    entity_dict["texts"] = text
                     wiki_info_to_file(entity_dict)
                 else:
-                    print(f"Failed to fetch info - {wikidata_title}")
+                    if debug:
+                        print(f"Failed to fetch info - {wikidata_title}")
             else:
                 no_urls_entities.append(json_str)
         else:
-            print("None sitelink - {entity_id}")
+            if debug:
+                print("None sitelink - {entity_id}")
 
     if pbar is not None:
         pbar.close()
