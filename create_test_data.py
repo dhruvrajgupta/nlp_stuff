@@ -6,29 +6,20 @@ import wikipediaapi
 
 url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={" \
       "qid}&languages=en&props=descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
-
 id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
 
-entities_qid_list = []
 wiki = wikipediaapi.Wikipedia('en')
 debug = True
 debug_count = 5
 debug_entities_meta_count = 1000
-different_ids_page_kg = []
 
 
-def print_links(page):
-    links = page.links
-    for title in sorted(links.keys()):
-        print("%s: %s" % (title, links[title]))
-
-
-def extract_text_having_mention(page, entity_dict):
-    extracted_texts = []
+def extract_text_from_sections(page, entity_dict):
+    # extracted_texts = []
     if debug:
         print("\n")
         print(f"Wikidata Title:\t{entity_dict['wikidata_title']}")
-        print(f"Wikipedia Title:\t{page.title}")
+        print(f"Wikipedia Title:\t{page.title}\n")
         # print(f"Texts containing {entity_dict['wikidata_title']}")
     sections = page.sections
     sections_text_list = get_section_text(sections, [])
@@ -50,9 +41,9 @@ def get_section_text(sections, sections_text_list):
     return sections_text_list
 
 
-def check_wikidata_id_wikipage_match(entity_id, wikidata_title_normalized):
+def wikidata_id_of_wikipage(wikidata_title_normalized):
     """
-    If the ids on the page and wikidata match many many references will available for the entity
+    If the ids on the page and wikidata match many references will available for the entity
     != Akash Ambani, Mukesh Ambani
 
     :returns wikidata_id of the WikiPage
@@ -71,7 +62,6 @@ def check_wikidata_id_wikipage_match(entity_id, wikidata_title_normalized):
 def write_wiki_info():
     pbar = None
     no_urls_entities = []
-    diff_urls_ents = []
 
     with open('entity_meta_info.jsonl', 'r') as json_file:
         json_list = list(json_file)
@@ -85,7 +75,6 @@ def write_wiki_info():
     c = 0
 
     for json_str in json_list:
-        entity_dict = {}
         result = json.loads(json_str)
         entity_id = list(result.keys())[0]
         sitelinks = result[entity_id].get("sitelinks", None)
@@ -99,33 +88,11 @@ def write_wiki_info():
                 wikidata_url = sitelinks["enwiki"]["url"]
                 page = wiki.page(wikidata_title)
                 if page.exists():
-                    same_entity_reference = check_wikidata_id_wikipage_match(entity_id, page.fullurl.split("/")[-1])
                     if pbar is not None and c <= debug_count:
                         c += 1
                         pbar.update(1)
 
-                    # check whether the page is exact as the url
-                    # Redirects
-                    if page.fullurl != wikidata_url:
-                        diff_url_ent = {}
-                        diff_url_ent["wikidata_id"] = entity_id
-                        diff_url_ent["wikidata_title"] = wikidata_title
-                        diff_url_ent["wikipage_title"] = page.title
-                        diff_url_ent["wikidata_url"] = wikidata_url
-                        diff_url_ent["wikipage_url"] = page.fullurl
-                        diff_urls_ents.append(diff_url_ent)
-                        if debug:
-                            print(f"meta url - {wikidata_url}")
-                            print(f"page url - {page.fullurl}")
-
-                    summary = page.summary
-                    entity_dict["wikidata_id"] = entity_id
-                    entity_dict["wikidata_title"] = wikidata_title
-                    entity_dict["wikipedia_title"] = page.title
-                    entity_dict["wikidata_url"] = wikidata_url
-                    entity_dict["summary"] = summary
-                    text = extract_text_having_mention(page, entity_dict)
-                    entity_dict["texts"] = text
+                    entity_dict = make_entity_dict(entity_id, page, wikidata_title, wikidata_url)
                     wiki_info_to_file(entity_dict)
                 else:
                     if debug:
@@ -140,7 +107,19 @@ def write_wiki_info():
         pbar.close()
 
     write_no_urls_entities(no_urls_entities)
-    write_different_urls(diff_urls_ents)
+
+
+def make_entity_dict(entity_id, page, wikidata_title, wikidata_url):
+    page_wikidata_id = wikidata_id_of_wikipage(page.fullurl.split("/")[-1])
+    entity_dict = {"wikidata_id": entity_id, "page_wikidata_id": page_wikidata_id, "wikidata_title": wikidata_title,
+                   "wikipedia_title": page.title,
+                   "wikidata_url": wikidata_url,
+                   "wikipedia_url": page.fullurl, "summary": page.summary}
+    text = extract_text_from_sections(page, entity_dict)
+    entity_dict["texts"] = text
+
+    return entity_dict
+
 
 
 """
@@ -162,6 +141,7 @@ Reading File methods
 
 
 def entities_from_file():
+    entities_qid_list = []
     with open("test_unique_entities_list.txt", "rt") as f:
         for line in f:
             line = line.rstrip()
@@ -175,11 +155,12 @@ Writing to Files methods
 """
 
 
-def wiki_info_to_file(info_dict):
-    with open(f"extracted_entities/{info_dict['wikidata_id']}.json", "wt") as f:
-        f.write(json.dumps(info_dict))
+def wiki_info_to_file(entity_dict):
+    with open(f"extracted_entities/{entity_dict['wikidata_id']}.json", "wt") as f:
+        f.write(json.dumps(entity_dict))
 
 
+# TODO: Refactor this
 def write_different_urls(diff_urls_ents):
     with open(f"different_urls.jsonl", "wt") as f:
         for ent in diff_urls_ents:
