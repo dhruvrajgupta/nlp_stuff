@@ -1,0 +1,50 @@
+version: '3.3'
+
+services:
+
+  neo4j_db:
+    image: neo4j:4.4.12
+    environment:
+      - NEO4J_AUTH=neo4j/aZ3vVHrpxMQv99e8
+      - NEO4JLABS_PLUGINS=["apoc", "graph-data-science"]
+      - NEO4J_dbms_threads_worker__count=4
+      - NEO4J_dbms_connector_bolt_thread__pool__max__size=32
+      - NEO4J_dbms_connector_bolt_thread__pool__min__size=1
+      - NEO4J_dbms_memory_pagecache_scan_prefetchers=1
+      - NEO4J_dbms_memory_pagecache_size=1G
+      - NEO4J_dbms_memory_heap_max__size=3G
+      - NEO4J_dbms_default__listen__address=0.0.0.0
+      - NEO4J_dbms_default__advertised__address=0.0.0.0
+      - NEO4J_dbms_connector_https_enabled=false
+      - NEO4J_dbms_connector_http_enabled=false
+      - NEO4J_dbms_connector_bolt_enabled=true
+    expose:
+      # Available only on docker network
+      # - 7474
+      - 7687
+    ports:
+      # Available only on localhost
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+    restart: always
+
+  luigid:
+    image: python:3.9-slim
+    command: bash -c "pip install luigi==3.1.0 && luigid"
+    expose:
+      - 8082
+    ports:
+      # Available only on localhost
+      - "127.0.0.1:8082:8082"
+    restart: always
+
+  web:
+    environment:
+      - ENTRYPOINT_NEO4J_WAIT=1
+      - NEO4J_HOST=neo4j_db
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=aZ3vVHrpxMQv99e8
+
+volumes:
+  neo4j_data:
