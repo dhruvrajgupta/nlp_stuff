@@ -1,3 +1,4 @@
+import sys
 from urllib.request import urlopen
 import json
 from tqdm import tqdm
@@ -5,47 +6,15 @@ import wikipediaapi
 
 url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={" \
       "qid}&languages=en&props=descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
+
+id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
+
 entities_qid_list = []
 wiki = wikipediaapi.Wikipedia('en')
 debug = True
-debug_count = 300
+debug_count = 5
 debug_entities_meta_count = 1000
-
-
-def get_entity_info(qid):
-    qurl = url.format(qid=qid)
-    response = urlopen(qurl)
-    data_json = json.loads(response.read())
-
-    return json.dumps(data_json["entities"])
-
-
-def entities_from_file():
-    with open("test_unique_entities_list.txt", "rt") as f:
-        for line in f:
-            line = line.rstrip()
-            entities_qid_list.append(line)
-
-    return entities_qid_list
-
-
-def write_meta_info_file():
-    entities_qid_list = entities_from_file()
-    with open("entity_meta_info.jsonl", "wt") as f:
-        if debug:
-            en_list = entities_qid_list[:debug_entities_meta_count]
-        else:
-            en_list = entities_qid_list
-
-        print("Writing entity meta info to file...")
-        for i, qid in enumerate(tqdm(en_list)):
-            f.write(get_entity_info(qid))
-            f.write("\n")
-
-
-def wiki_info_to_file(info_dict):
-    with open(f"extracted_entities/{info_dict['wikidata_id']}.json", "wt") as f:
-        f.write(json.dumps(info_dict))
+different_ids_page_kg = []
 
 
 def print_links(page):
@@ -60,25 +29,43 @@ def extract_text_having_mention(page, entity_dict):
         print("\n")
         print(f"Wikidata Title:\t{entity_dict['wikidata_title']}")
         print(f"Wikipedia Title:\t{page.title}")
-        print(f"Texts containing {entity_dict['wikidata_title']}")
+        # print(f"Texts containing {entity_dict['wikidata_title']}")
     sections = page.sections
     sections_text_list = get_section_text(sections, [])
-    for x in sections_text_list:
-        if entity_dict['wikidata_title'] in x:
-            if debug:
-                print(x)
-            extracted_texts.append(x)
+    # for x in sections_text_list:
+    #     if entity_dict['wikidata_title'] in x:
+    #         if debug:
+    #             print(x)
+    #     extracted_texts.append(x)
 
-    return extracted_texts
+    return sections_text_list
 
 
 def get_section_text(sections, sections_text_list):
     for s in sections:
         if s.title not in ["Bibliography", "References", "External links"]:
-            sections_text_list.append(s.text)
+            sections_text_list.append(f"{s.title}#{s.text}")
             get_section_text(s.sections, sections_text_list)
 
     return sections_text_list
+
+
+def check_wikidata_id_wikipage_match(entity_id, wikidata_title_normalized):
+    """
+    If the ids on the page and wikidata match many many references will available for the entity
+    != Akash Ambani, Mukesh Ambani
+
+    :returns wikidata_id of the WikiPage
+    """
+    idurl = id_from_page_url.format(title=wikidata_title_normalized)
+    response = urlopen(idurl)
+    data_json = json.loads(response.read())
+
+    pages_dict = data_json["query"]["pages"]
+    pageid = list(pages_dict.keys())[-1]
+    page_wikidata_id = pages_dict[pageid]["pageprops"]["wikibase_item"]
+
+    return page_wikidata_id
 
 
 def write_wiki_info():
@@ -112,6 +99,7 @@ def write_wiki_info():
                 wikidata_url = sitelinks["enwiki"]["url"]
                 page = wiki.page(wikidata_title)
                 if page.exists():
+                    same_entity_reference = check_wikidata_id_wikipage_match(entity_id, page.fullurl.split("/")[-1])
                     if pbar is not None and c <= debug_count:
                         c += 1
                         pbar.update(1)
@@ -152,9 +140,64 @@ def write_wiki_info():
         pbar.close()
 
     write_no_urls_entities(no_urls_entities)
+    write_different_urls(diff_urls_ents)
+
+
+"""
+URL Request methods
+"""
+
+
+def get_entity_info(qid):
+    qurl = url.format(qid=qid)
+    response = urlopen(qurl)
+    data_json = json.loads(response.read())
+
+    return json.dumps(data_json["entities"])
+
+
+"""
+Reading File methods
+"""
+
+
+def entities_from_file():
+    with open("test_unique_entities_list.txt", "rt") as f:
+        for line in f:
+            line = line.rstrip()
+            entities_qid_list.append(line)
+
+    return entities_qid_list
+
+
+"""
+Writing to Files methods
+"""
+
+
+def wiki_info_to_file(info_dict):
+    with open(f"extracted_entities/{info_dict['wikidata_id']}.json", "wt") as f:
+        f.write(json.dumps(info_dict))
+
+
+def write_different_urls(diff_urls_ents):
     with open(f"different_urls.jsonl", "wt") as f:
         for ent in diff_urls_ents:
             f.write(json.dumps(ent))
+            f.write("\n")
+
+
+def write_meta_info_file():
+    entities_qid_list = entities_from_file()
+    with open("entity_meta_info.jsonl", "wt") as f:
+        if debug:
+            en_list = entities_qid_list[:debug_entities_meta_count]
+        else:
+            en_list = entities_qid_list
+
+        print("Writing entity meta info to file...")
+        for i, qid in enumerate(tqdm(en_list)):
+            f.write(get_entity_info(qid))
             f.write("\n")
 
 
