@@ -1,8 +1,10 @@
+import os
 import sys
 from urllib.request import urlopen
 import json
 from tqdm import tqdm
 import wikipediaapi
+from pathlib import Path
 
 url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={" \
       "qid}&languages=en&props=descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
@@ -118,6 +120,14 @@ def make_entity_dict(entity_id, page, wikidata_title, wikidata_url):
     text = extract_text_from_sections(page, entity_dict)
     entity_dict["texts"] = text
 
+    # backlinks = page.backlinks
+    # backlinks_urls = []
+    # for k, v in backlinks.items():
+    #     if ":" not in v.fullurl.split("/")[-1]:
+    #         backlinks_urls.append(v.fullurl)
+    # print(f"No of Backlinks: {len(backlinks_urls)}")
+    # entity_dict["backlinks"] = backlinks_urls
+
     return entity_dict
 
 
@@ -161,11 +171,22 @@ def wiki_info_to_file(entity_dict):
 
 
 # TODO: Refactor this
-def write_different_urls(diff_urls_ents):
+def write_different_urls():
+    dir_path_extracted_entities = Path("extracted_entities")
+    all_files = os.listdir(dir_path_extracted_entities)
+
     with open(f"different_urls.jsonl", "wt") as f:
-        for ent in diff_urls_ents:
-            f.write(json.dumps(ent))
-            f.write("\n")
+
+        for file_name in all_files:
+            with open(dir_path_extracted_entities / str(file_name), "rt") as file:
+                wiki_info = json.loads(file.read())
+                if wiki_info["wikidata_url"] != wiki_info["wikipedia_url"]:
+                    f.write(json.dumps(wiki_info))
+                    f.write("\n")
+        # with open(f"different_urls.jsonl", "wt") as f:
+        #     for ent in diff_urls_ents:
+        #         f.write(json.dumps(ent))
+        #         f.write("\n")
 
 
 def write_meta_info_file():
@@ -191,3 +212,4 @@ def write_no_urls_entities(ents):
 if __name__ == "__main__":
     # write_meta_info_file()
     write_wiki_info()
+    write_different_urls()
