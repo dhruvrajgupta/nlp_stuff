@@ -12,7 +12,7 @@ id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&
 
 wiki = wikipediaapi.Wikipedia('en')
 debug = True
-debug_count = 5
+debug_count = 20
 debug_entities_meta_count = 1000
 
 
