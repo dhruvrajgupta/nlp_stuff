@@ -21,36 +21,6 @@ from bs4 import BeautifulSoup
 import re
 
 
-# Extract the plain text content from paragraphs
-# paras = []
-# for paragraph in soup.find_all('p'):
-#     paras.append(str(paragraph.text))
-
-# Extract text from paragraph headers
-# heads = []
-# for head in soup.find_all('span', attrs={'mw-headline'}):
-#     heads.append(str(head.text))
-
-# Interleave paragraphs & headers
-# text = [val for pair in zip(paras, heads) for val in pair]
-# text = ' '.join(text)
-
-# Drop footnote superscripts in brackets
-# text = re.sub(r"\[.*?\]+", '', text)
-
-# Replace '\n' (a new line) with '' and end the string at $1000.
-# text = text.replace('\n', '')[:-11]
-# print(text)
-
-# for x in text:
-#     print(x)
-
-# for x in soup.find_all('span', attrs={'mw-headline'}):
-#     print(x.text)
-#     for p in x.parent.find_next_siblings('p', limit=1):
-#         print(p)
-#     print()
-
 def convert_plain_text(html_text):
     # Drop footnote superscripts in brackets
     text = re.sub(r"\[.*?\]+", '', html_text)
@@ -66,23 +36,6 @@ def get_wiki_links(html_text):
         links_list.append((l.text, l.get('title'), l.get('href')))
 
     return links_list
-
-
-def get_summary(soup):
-    texts_links_list = []
-    x = None
-    for s in soup.find('span', attrs={'mw-headline'}):
-        x = s.parent
-
-    all_p_before_first_heading = x.find_all_previous('p')
-    for p in all_p_before_first_heading:
-        if p.text.strip() is not "":
-            text = convert_plain_text(p.text)
-            links = get_wiki_links(p)
-
-            texts_links_list.append((text, links))
-
-    return texts_links_list
 
 
 def extract_table_info(wikitable):
@@ -115,7 +68,7 @@ def extract_table_info(wikitable):
         text_data = ""
         for header in headers:
             text_data += f"{header}: {row[header]}\n"
-        table_data.append((text_data, get_wiki_links(rows[i + 1])))
+        table_data.append((convert_plain_text(text_data), get_wiki_links(rows[i + 1])))
 
     return table_data
 
@@ -129,62 +82,50 @@ def extract_section(start, end):
             contents.append(elem)
             print(elem)
 
-    # print(contents)
+
+def extract_ul(element):
+    li_list = []
+    li = element.find_all('li')
+    for item in li:
+        text = convert_plain_text(item.text)
+        links = get_wiki_links(item)
+        li_list.append((text, links))
+
+    return li_list
 
 
-def all_other_sections(soup):
+def all_sections(soup):
     section_dict = {}
-    para_count = 0
-    print(soup)
-    all_paras = soup.find_next_siblings(['p'])
-    print(all_paras)
-    # for i, a in enumerate(all_paras):
-    #     print(f"{i} - {a}")
-    # print(len(all_paras))
+    x = soup.next
+    all_paras = x.find_next_siblings(['p', 'ul', 'table'])
     curr_section = "Summary"
-    start = soup.find(name="div", class_="shortdescription")
+    para_count = 0
     for x in soup.find_all('span', attrs={'mw-headline'}):
-        # extract_section(start, x)
-        print(curr_section)
-        print("------------------")
-        till = x.parent.find_previous_siblings(['p','ul', 'table'])
-        # for a in till:
-        #     if a.name == "table":
-        #         if "wikitable" in a.get("class"):
-        #             print(a)
-        #     else:
-        #         print(a)
-        curr_section = x.text
-        # print(f"{para_count} to {till - 1}")
-        # for p in range(para_count, till):
-        #     element = all_paras[p]
-        #     if element.name == "table" and "wikitable" in element.attrs["class"]:
-        #         print(extract_table_info(element))
-        #     # print(f"{p} - {all_paras[p].text}")
-        #
-        # curr_section = x.text
-        # para_count = till
-        # if para_count == 0:
-        #     key = "summary"
-        #     till = len(x.find_all_previous('p'))
-        #     print(key)
-        #     print("------------------------")
-        #     print(f"{para_count} to {till-1}")
-        #     for p in range(para_count, till):
-        #         print(f"{p} - {all_paras[p].text}")
+        section_content_list = []
 
-        # key = x.text
-        #
-        # print(x.text)
-        # print("------------------------")
-        # till = len(x.find_all_previous('p'))
-        # print(f"{para_count} to {till-1}")
-        # for p in range(para_count, till):
-        #     print(str(p)+" - "+all_paras[p].text)
-        # para_count += till
-        # for p in x.parent.find_next_siblings('p'):
-        #     print(p)
-        # print()
+        till = len(x.parent.find_previous_siblings(['p', 'ul', 'table']))
+
+        for p in range(para_count, till):
+            element = all_paras[p]
+            if element.name == "table" and "wikitable" in element.attrs["class"]:
+                for item in extract_table_info(element):
+                    section_content_list.append(item)
+
+            if element.name == "p" and element.text.strip() != "":
+                text = convert_plain_text(element.text)
+                links = get_wiki_links(element)
+                section_content_list.append((text, links))
+
+            if element.name == "ul":
+                for item in extract_ul(element):
+                    section_content_list.append(item)
+
+        section_dict[curr_section] = section_content_list
+
+        para_count = till
+        curr_section = x.text
+
+    return section_dict
 
 
 def main():
@@ -197,7 +138,9 @@ def main():
     # summary = get_summary(soup)
 
     # For all other sections
-    all_other_sections(soup)
+    x = all_sections(soup)
+    import json
+    print(json.dumps(x, indent=2))
 
 
 if __name__ == "__main__":
