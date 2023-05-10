@@ -108,3 +108,23 @@ def get_entity_info(qid):
     data_json = json.loads(response.read())
 
     return json.dumps(data_json["entities"])
+
+
+def wikidata_id_of_wikipage(wikidata_title_normalized):
+    """
+    If the ids on the page and wikidata match many references will available for the entity
+    != Akash Ambani, Mukesh Ambani
+
+    :returns wikidata_id of the WikiPage
+    """
+    id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
+
+    idurl = id_from_page_url.format(title=wikidata_title_normalized)
+    response = urlopen(idurl)
+    data_json = json.loads(response.read())
+
+    pages_dict = data_json["query"]["pages"]
+    pageid = list(pages_dict.keys())[-1]
+    page_wikidata_id = pages_dict[pageid]["pageprops"]["wikibase_item"]
+
+    return page_wikidata_id
