@@ -1,4 +1,6 @@
 import re
+from urllib.request import urlopen
+import json
 
 
 def convert_plain_text(html_text):
@@ -96,3 +98,13 @@ def all_sections(soup):
         curr_section = x.text
 
     return section_dict
+
+
+def get_entity_info(qid):
+    url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={" \
+          "qid}&languages=en&props=descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
+    qurl = url.format(qid=qid)
+    response = urlopen(qurl)
+    data_json = json.loads(response.read())
+
+    return json.dumps(data_json["entities"])

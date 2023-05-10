@@ -1,0 +1,4 @@
+flair
+beautifulsoup4
+tqdm
+json
