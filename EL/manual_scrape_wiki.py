@@ -1,3 +1,4 @@
+import json
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import wikipediaapi
@@ -22,6 +23,11 @@ def entities_from_file():
     return entities_qid_list
 
 
+"""
+Writing to files methods
+"""
+
+
 def write_wikidata_meta_info_file():
     """
     Get Wikipedia links from wikidata for the given entity from file
@@ -39,8 +45,36 @@ def write_wikidata_meta_info_file():
             f.write("\n")
 
 
+def write_no_urls_entities():
+    no_urls_entities = []
+    with open(data / 'entity_meta_info.jsonl', 'r') as json_file:
+        json_list = list(json_file)
+
+    print("Writing to file entities having no sitelinks....")
+    for json_str in tqdm(json_list):
+        meta_str = json.loads(json_str)
+        entity_id = list(meta_str.keys())[0]
+        sitelinks = meta_str[entity_id].get("sitelinks", None)
+
+        if sitelinks is None:
+            no_urls_entities.append(json_str)
+        else:
+            if len(sitelinks) == 0:
+                no_urls_entities.append(json_str)
+
+    with open(data / "entities_with_no_url.jsonl", "wt") as f:
+        for ent in no_urls_entities:
+            f.write(ent)
+
+
 def main():
-    write_wikidata_meta_info_file()
+    # Wikidata's entity page links, page titles and page sitelinks
+    # write_wikidata_meta_info_file()
+
+    # List of Wikidata entities not having sitelinks
+    # write_no_urls_entities()
+
+    pass
 
     # source = urlopen('https://en.wikipedia.org/wiki/Mukesh_Ambani').read()
     # soup = BeautifulSoup(source, 'html.parser')
