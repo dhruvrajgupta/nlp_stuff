@@ -16,6 +16,7 @@ data = Path("data")
 
 # TODO separate wikidata info and wikipage info
 def make_entity_dict(entity_id, page, wikidata_title, wikidata_url):
+    """TODO Remove this"""
     page_wikidata_id = wikidata_id_of_wikipage(page.fullurl.split("/")[-1])
     entity_dict = {
         "wikidata_id": entity_id,
@@ -93,51 +94,7 @@ def wiki_entity_page_info_to_file(entity_dict):
         f.write(json.dumps(entity_dict))
 
 
-def write_wikidata_meta_info_file():
-    """
-    Get Wikipedia links from wikidata for the given entity from file
-    """
-    entities_qid_list = entities_from_file()
-    with open(data / "entity_meta_info.jsonl", "wt") as f:
-        if debug:
-            en_list = entities_qid_list[:debug_entities_meta_count]
-        else:
-            en_list = entities_qid_list
-
-        print("Writing entity meta info to file...")
-        for i, qid in enumerate(tqdm(en_list)):
-            f.write(get_wikidata_entity_info(qid))
-            f.write("\n")
-
-
-def write_no_urls_entities():
-    no_urls_entities = []
-    with open(data / 'entity_meta_info.jsonl', 'r') as json_file:
-        json_list = list(json_file)
-
-    print("Writing to file entities having no sitelinks....")
-    for json_str in tqdm(json_list):
-        meta_str = json.loads(json_str)
-        entity_id = list(meta_str.keys())[0]
-        sitelinks = meta_str[entity_id].get("sitelinks", None)
-
-        if sitelinks is None:
-            no_urls_entities.append(json_str)
-        else:
-            if len(sitelinks) == 0:
-                no_urls_entities.append(json_str)
-
-    with open(data / "entities_with_no_url.jsonl", "wt") as f:
-        for ent in no_urls_entities:
-            f.write(ent)
-
-
 def main():
-    # Wikidata's entity page links, page titles and page sitelinks
-    # write_wikidata_meta_info_file()
-
-    # List of Wikidata entities not having sitelinks
-    # write_no_urls_entities()
 
     # Write Wikidata Information (id, en_label, en_description, enwiki_title)
     write_wikidata_item_info()
