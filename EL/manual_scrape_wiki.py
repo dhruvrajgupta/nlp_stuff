@@ -66,7 +66,12 @@ def write_wikidata_item_info():
             # print(json.dumps(info, indent=4))
             qid = list(info.keys())[0]
             id = qid[1:]
-            label = info[qid]["labels"]["en"]["value"]
+
+            labels = info[qid].get("labels")
+            if labels is None or len(labels) == 0:
+                label = None
+            else:
+                label = labels["en"]["value"]
 
             descriptions = info[qid].get("descriptions", None)
             if descriptions is None or len(descriptions) == 0:
