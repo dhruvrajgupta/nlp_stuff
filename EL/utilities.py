@@ -2,6 +2,11 @@ import re
 from urllib.request import urlopen
 import json
 
+wikidata_info_url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={qid}&languages=en" \
+          "&props=labels|descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
+
+id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
+
 
 def convert_plain_text(html_text):
     # Drop footnote superscripts in brackets
@@ -100,14 +105,12 @@ def all_sections(soup):
     return section_dict
 
 
-def get_entity_info(qid):
-    url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={" \
-          "qid}&languages=en&props=descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
-    qurl = url.format(qid=qid)
+def get_wikidata_entity_info(qid):
+    qurl = wikidata_info_url.format(qid=qid)
     response = urlopen(qurl)
     data_json = json.loads(response.read())
 
-    return json.dumps(data_json["entities"])
+    return data_json["entities"]
 
 
 def wikidata_id_of_wikipage(wikidata_title_normalized):
@@ -117,7 +120,6 @@ def wikidata_id_of_wikipage(wikidata_title_normalized):
 
     :returns wikidata_id of the WikiPage
     """
-    id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
 
     idurl = id_from_page_url.format(title=wikidata_title_normalized)
     response = urlopen(idurl)

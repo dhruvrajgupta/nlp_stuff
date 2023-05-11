@@ -3,8 +3,9 @@ from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import wikipediaapi
 from tqdm import tqdm
-from utilities import get_entity_info, wikidata_id_of_wikipage
+from utilities import get_wikidata_entity_info, wikidata_id_of_wikipage
 from pathlib import Path
+import csv
 
 wiki = wikipediaapi.Wikipedia('en')
 debug = True
@@ -49,46 +50,37 @@ def entities_from_file():
     return entities_qid_list
 
 
-def write_wiki_info():
-    pbar = None
+def write_wikidata_item_info():
+    entities = entities_from_file()
 
-    with open(data / 'entity_meta_info.jsonl', 'r') as json_file:
-        json_list = list(json_file)
+    print("Fetching and writing info for wikidata item...")
+    with open(data / "wikidata_item.csv", mode="w") as csv_file:
+        fieldnames = ["id", "en_label", "en_description", "enwiki_title"]
+        csv_writer = csv.DictWriter(csv_file, delimiter=",", quotechar='"', quoting=csv.QUOTE_ALL,
+                                    fieldnames=fieldnames)
+        csv_writer.writeheader()
 
-    print("Fetching info from wikipedia...")
+        for entitiy in tqdm(entities):
+            info = get_wikidata_entity_info(entitiy)
+            # print(json.dumps(info, indent=4))
+            qid = list(info.keys())[0]
+            id = qid[1:]
+            label = info[qid]["labels"]["en"]["value"]
 
-    if debug:
-        pbar = tqdm(total=debug_count)
-    else:
-        json_list = tqdm(json_list)
-    c = 0
-
-    for json_str in json_list:
-        result = json.loads(json_str)
-        entity_id = list(result.keys())[0]
-        sitelinks = result[entity_id].get("sitelinks", None)
-        if sitelinks is not None and len(sitelinks) > 0:
-
-            if debug and c == debug_count:
-                break
-
-            wikidata_title = sitelinks["enwiki"]["title"]
-            wikidata_url = sitelinks["enwiki"]["url"]
-            page = wiki.page(wikidata_title)
-            if page.exists():
-                if pbar is not None and c <= debug_count:
-                    c += 1
-                    pbar.update(1)
-
-                entity_dict = make_entity_dict(entity_id, page, wikidata_title, wikidata_url)
-                print(json.dumps(entity_dict, indent=2))
-                # wiki_info_to_file(entity_dict)
+            descriptions = info[qid].get("descriptions", None)
+            if descriptions is None or len(descriptions) == 0:
+                description = None
             else:
-                if debug:
-                    print(f"Failed to fetch info - {wikidata_title}")
+                description = descriptions["en"]["value"]
 
-    if pbar is not None:
-        pbar.close()
+            sitelinks = info[qid].get("sitelinks", None)
+            if sitelinks is None or len(sitelinks) == 0:
+                wiki_title = None
+            else:
+                wiki_title = sitelinks["enwiki"]["title"]
+
+            info_dict = {"id": id, "en_label": label, "en_description": description, "enwiki_title": wiki_title}
+            csv_writer.writerow(info_dict)
 
 
 """
@@ -114,7 +106,7 @@ def write_wikidata_meta_info_file():
 
         print("Writing entity meta info to file...")
         for i, qid in enumerate(tqdm(en_list)):
-            f.write(get_entity_info(qid))
+            f.write(get_wikidata_entity_info(qid))
             f.write("\n")
 
 
@@ -147,7 +139,8 @@ def main():
     # List of Wikidata entities not having sitelinks
     # write_no_urls_entities()
 
-    write_wiki_info()
+    # Write Wikidata Information (id, en_label, en_description, enwiki_title)
+    write_wikidata_item_info()
 
     # source = urlopen('https://en.wikipedia.org/wiki/Mukesh_Ambani').read()
     # soup = BeautifulSoup(source, 'html.parser')
