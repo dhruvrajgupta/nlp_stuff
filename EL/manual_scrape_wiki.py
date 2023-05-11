@@ -97,6 +97,7 @@ def wiki_entity_page_info_to_file(entity_dict):
 def main():
 
     # Write Wikidata Information (id, en_label, en_description, enwiki_title)
+    # Run this function to create wikidata_items.csv file
     write_wikidata_item_info()
 
     # source = urlopen('https://en.wikipedia.org/wiki/Mukesh_Ambani').read()
