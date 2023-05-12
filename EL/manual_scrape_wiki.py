@@ -103,7 +103,9 @@ def main():
 
     # Write Wikidata Information (id, en_label, en_description, enwiki_title)
     # Run this function to create wikidata_items.csv file
-    write_wikidata_item_info()
+    # write_wikidata_item_info()
+
+    pass
 
     # source = urlopen('https://en.wikipedia.org/wiki/Mukesh_Ambani').read()
     # soup = BeautifulSoup(source, 'html.parser')
