@@ -1,14 +1,18 @@
 import re
 from urllib.request import urlopen
+import urllib.parse
 import json
+from urllib.error import HTTPError
 
 wikidata_info_url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids={qid}&languages=en" \
           "&props=labels|descriptions|sitelinks%2Furls&sitefilter=enwiki&format=json"
 
-id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
+# id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
 
 pageview_url = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/" \
-               "all-agents/Albert_Einstein/monthly/2022100100/2022103100"
+               "all-agents/{title}/monthly/2022100100/2022103100"
+
+wikipage_info_url = "https://en.wikipedia.org/w/api.php?action=query&prop=info|redirects|pageprops&titles={title}&format=json"
 
 
 def convert_plain_text(html_text):
@@ -133,3 +137,56 @@ def wikidata_id_of_wikipage(wikidata_title_normalized):
     page_wikidata_id = pages_dict[pageid]["pageprops"]["wikibase_item"]
 
     return page_wikidata_id
+
+
+def get_page_views(wikipage_title):
+    url = pageview_url.format(title=wikipage_title)
+    response = urlopen(url)
+    data_json = json.loads(response.read())
+
+    views = data_json["items"][0]["views"]
+
+    return views
+
+
+def get_wikipages_info(wikipage_title):
+    try:
+        wikipage_title = urllib.parse.quote_plus(wikipage_title)
+        url = wikipage_info_url.format(title=wikipage_title)
+        response = urlopen(url)
+        data_json = json.loads(response.read())
+
+        page = list(data_json["query"]["pages"].keys())[0]
+        page = data_json["query"]["pages"][page]
+        page_id = page["pageid"]
+
+        page_title = page["title"]
+
+        page_is_redirect = page.get("redirects", None)
+        if page_is_redirect is None:
+            page_is_redirect = 0
+        else:
+            page_is_redirect = 1
+
+        page_len = page["length"]
+
+        wikidata_numeric_id = page["pageprops"]["wikibase_item"]
+        views = get_page_views(wikipage_title)
+
+        return {
+            "page_id": page_id,
+            "page_title": page_title,
+            "page_is_redirect": page_is_redirect,
+            "page_len": page_len,
+            "wikidata_numeric_id": wikidata_numeric_id,
+            "views": views
+        }
+    except HTTPError as e:
+        return {
+            "page_id": None,
+            "page_title": wikipage_title,
+            "page_is_redirect": None,
+            "page_len": None,
+            "wikidata_numeric_id": None,
+            "views": None
+        }

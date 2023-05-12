@@ -3,7 +3,8 @@ from urllib.request import urlopen
 from bs4 import BeautifulSoup
 import wikipediaapi
 from tqdm import tqdm
-from utilities import get_wikidata_entity_info, wikidata_id_of_wikipage
+from utilities import get_wikidata_entity_info, wikidata_id_of_wikipage, get_page_views, get_wikipages_info
+from utilities import get_wikidata_entity_info, wikidata_id_of_wikipage, get_page_views, get_wikipages_info
 from pathlib import Path
 import csv
 
@@ -85,8 +86,8 @@ def write_wikidata_item_info():
             else:
                 wiki_title = sitelinks["enwiki"]["title"]
 
-            info_dict = {"id": id, "en_label": label, "en_description": description, "enwiki_title": wiki_title}
-            csv_writer.writerow(info_dict)
+            wikidata_info = {"id": id, "en_label": label, "en_description": description, "enwiki_title": wiki_title}
+            csv_writer.writerow(wikidata_info)
 
 
 """
@@ -103,7 +104,29 @@ def somefunciton():
     import pandas as pd
     from tabulate import tabulate
     entities = pd.read_csv(data / "wikidata_item.csv")
-    print(tabulate(entities.head(100), headers='keys', tablefmt='psql'))
+    # print(tabulate(entities.head(100), headers='keys', tablefmt='psql'))
+
+    print("Fetching and writing info for wiki pages...")
+    with open(data / "enwiki_page.csv", mode="w") as csv_file:
+        fieldnames = ["page_id", "page_title", "page_is_redirect", "page_len", "wikidata_numeric_id", "views"]
+        csv_writer = csv.DictWriter(csv_file, delimiter=",", quotechar='"', quoting=csv.QUOTE_ALL,
+                                    fieldnames=fieldnames)
+
+        csv_writer.writeheader()
+
+        pbar = tqdm(total=entities.shape[0])
+
+        for index, entity in entities.iterrows():
+            pbar.update(1)
+            if not isinstance(entity["enwiki_title"], float):
+                title = entity["enwiki_title"].replace(" ", "_")
+                wikipage_info = get_wikipages_info(title)
+
+                csv_writer.writerow(wikipage_info)
+
+        pbar.close()
+
+
 
 
 def main():
