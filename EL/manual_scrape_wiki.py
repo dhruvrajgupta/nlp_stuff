@@ -99,13 +99,20 @@ def wiki_entity_page_info_to_file(entity_dict):
         f.write(json.dumps(entity_dict))
 
 
+def somefunciton():
+    import pandas as pd
+    from tabulate import tabulate
+    entities = pd.read_csv(data / "wikidata_item.csv")
+    print(tabulate(entities.head(100), headers='keys', tablefmt='psql'))
+
+
 def main():
 
     # Write Wikidata Information (id, en_label, en_description, enwiki_title)
     # Run this function to create wikidata_items.csv file
     # write_wikidata_item_info()
 
-    pass
+    somefunciton()
 
     # source = urlopen('https://en.wikipedia.org/wiki/Mukesh_Ambani').read()
     # soup = BeautifulSoup(source, 'html.parser')

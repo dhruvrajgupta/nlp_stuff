@@ -7,6 +7,9 @@ wikidata_info_url = "https://www.wikidata.org/w/api.php?action=wbgetentities&ids
 
 id_from_page_url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageprops&titles={title}"
 
+pageview_url = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/" \
+               "all-agents/Albert_Einstein/monthly/2022100100/2022103100"
+
 
 def convert_plain_text(html_text):
     # Drop footnote superscripts in brackets
